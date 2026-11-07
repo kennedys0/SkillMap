@@ -2,7 +2,7 @@
 
 SkillMap is a local-only catalog for installed agent skills. It reads metadata from real `SKILL.md` files under one directory, then ranks those skills against a project description with exact keyword scoring. It doesn't send file content or project descriptions to an external service.
 
-The repository currently contains the Next.js/MUI scaffold and the complete scanner, parser, matcher, and API layer. The inventory and matcher UI are the next project stage.
+The repository contains the Next.js/MUI scaffold, the complete scanner, parser, matcher, API layer, and the responsive skills inventory and deterministic project brief matcher UI.
 
 ## Run it locally
 

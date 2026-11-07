@@ -14,7 +14,15 @@ const theme = createTheme({
     },
     primary: {
       main: "#315c4c",
+      light: "#467b66",
+      dark: "#203e33",
+      contrastText: "#ffffff",
     },
+    text: {
+      primary: "#1f2421",
+      secondary: "#5c6560",
+    },
+    divider: "#e5e2da",
   },
   shape: {
     borderRadius: 12,
@@ -22,6 +30,33 @@ const theme = createTheme({
   typography: {
     fontFamily:
       "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+    button: {
+      textTransform: "none",
+      fontWeight: 600,
+    },
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        outlined: {
+          borderColor: "#e5e2da",
+        },
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+        },
+      },
+    },
   },
 });
 
