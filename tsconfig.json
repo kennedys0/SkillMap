@@ -22,8 +22,7 @@
     "next-env.d.ts",
     ".next/types/**/*.ts",
     "**/*.ts",
-    "**/*.tsx",
-    "vitest.config.ts"
+    "**/*.tsx"
   ],
   "exclude": ["node_modules"]
 }
