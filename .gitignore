@@ -1,11 +1,7 @@
 node_modules/
 .next/
-out/
-build/
-.env
-.env.*
-!.env.example
-.multica/project/resources.json
 coverage/
-*.log
-.DS_Store
+.env*
+!.env.example
+.superpowers/
+*.tsbuildinfo
