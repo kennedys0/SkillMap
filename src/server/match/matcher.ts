@@ -144,5 +144,10 @@ export function matchSkills(
       left.skillId.localeCompare(right.skillId, "en"),
   );
 
-  return ranked.map(({ skillName: _skillName, ...match }) => match);
+  return ranked.map(({ skillId, score, matchedTerms, reason }) => ({
+    skillId,
+    score,
+    matchedTerms,
+    reason,
+  }));
 }
