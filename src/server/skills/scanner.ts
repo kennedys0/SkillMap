@@ -154,7 +154,7 @@ export async function scanSkills(config: ScanConfig = {}): Promise<ScanResult> {
     return emptyResult("invalid_root");
   }
 
-  const normalizedRoot = resolve(configuredRoot);
+  const normalizedRoot = resolve(/* turbopackIgnore: true */ configuredRoot);
   if (
     normalizedRoot === parse(normalizedRoot).root ||
     normalizedRoot === resolve(homedir())
@@ -168,7 +168,7 @@ export async function scanSkills(config: ScanConfig = {}): Promise<ScanResult> {
     if (!rootStats.isDirectory() || rootStats.isSymbolicLink()) {
       return emptyResult("invalid_root");
     }
-    rootRealPath = await realpath(normalizedRoot);
+    rootRealPath = await realpath(/* turbopackIgnore: true */ normalizedRoot);
     if (rootRealPath !== normalizedRoot) {
       return emptyResult("invalid_root");
     }
