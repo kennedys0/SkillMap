@@ -8,14 +8,35 @@ const scanResult: ScanResult = {
   skills: [
     {
       id: "skill-1",
+      sourceId: "codex",
       name: "React Builder",
       description: "Builds React interfaces",
       relativePath: "react/SKILL.md",
       tags: ["react"],
     },
   ],
-  scan: { status: "ready", skillCount: 1, warningCount: 0 },
-  warnings: [],
+  scan: {
+    status: "ready",
+    skillCount: 1,
+    warningCount: 1,
+    sources: [
+      {
+        id: "codex",
+        label: "Codex skills",
+        agent: "codex",
+        status: "ready",
+        count: 1,
+      },
+    ],
+  },
+  warnings: [
+    {
+      code: "MALFORMED_SKILL",
+      message: "A SKILL.md file contained invalid metadata.",
+      sourceId: "codex",
+      relativePath: "bad/SKILL.md",
+    },
+  ],
 };
 
 describe("GET /api/skills", () => {
@@ -31,7 +52,7 @@ describe("GET /api/skills", () => {
         skills: scanResult.skills,
         scan: scanResult.scan,
       },
-      warnings: [],
+      warnings: scanResult.warnings,
     });
   });
 

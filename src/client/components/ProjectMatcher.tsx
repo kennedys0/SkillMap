@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -10,15 +10,20 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import type { SkillMatch, SkillSummary } from "@/src/contracts/api";
+import type {
+  SkillMatch,
+  SkillSourceScanInfo,
+  SkillSummary,
+} from "@/src/contracts/api";
 import {
   MAX_PROJECT_DESCRIPTION_LENGTH,
   validateProjectDescription,
 } from "../validate";
-import { TargetIcon } from "./Icons";
+import { FileIcon, TargetIcon } from "./Icons";
 
 interface ProjectMatcherProps {
   skills: SkillSummary[];
+  sources?: SkillSourceScanInfo[];
   matches: SkillMatch[];
   isMatching: boolean;
   matchError: string | null;
@@ -29,6 +34,7 @@ interface ProjectMatcherProps {
 
 export function ProjectMatcher({
   skills,
+  sources = [],
   matches,
   isMatching,
   matchError,
@@ -39,10 +45,21 @@ export function ProjectMatcher({
   const [description, setDescription] = useState("");
   const inputId = useId();
 
-  const skillLookup = new Map<string, SkillSummary>();
-  for (const s of skills) {
-    skillLookup.set(s.id, s);
-  }
+  const skillLookup = useMemo(() => {
+    const map = new Map<string, SkillSummary>();
+    for (const s of skills) {
+      map.set(s.id, s);
+    }
+    return map;
+  }, [skills]);
+
+  const sourceLookup = useMemo(() => {
+    const map = new Map<string, SkillSourceScanInfo>();
+    for (const src of sources) {
+      map.set(src.id, src);
+    }
+    return map;
+  }, [sources]);
 
   const validation = validateProjectDescription(description);
   const characterCount = [...description.trim()].length;
@@ -67,7 +84,7 @@ export function ProjectMatcher({
       <Paper
         variant="outlined"
         sx={{
-          p: { xs: 2.5, md: 3 },
+          p: { xs: 2.25, md: 3 },
           borderRadius: 2,
           backgroundColor: "background.paper",
         }}
@@ -127,11 +144,7 @@ export function ProjectMatcher({
               />
 
               {/* Action Buttons */}
-              <Stack
-                direction="row"
-                spacing={1.5}
-                sx={{ alignItems: "center" }}
-              >
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
                 <Button
                   type="submit"
                   variant="contained"
@@ -229,6 +242,9 @@ export function ProjectMatcher({
                       const skill = skillLookup.get(match.skillId);
                       const displayName = skill ? skill.name : match.skillId;
                       const relativePath = skill?.relativePath;
+                      const source = skill?.sourceId
+                        ? sourceLookup.get(skill.sourceId)
+                        : undefined;
 
                       return (
                         <Paper
@@ -259,17 +275,27 @@ export function ProjectMatcher({
                                 >
                                   {displayName}
                                 </Typography>
+
                                 {relativePath && (
-                                  <Typography
-                                    variant="caption"
-                                    sx={{
-                                      fontFamily: "monospace",
-                                      color: "text.secondary",
-                                      fontSize: "0.75rem",
-                                    }}
+                                  <Stack
+                                    direction="row"
+                                    spacing={0.5}
+                                    sx={{ alignItems: "center", mt: 0.25 }}
                                   >
-                                    {relativePath}
-                                  </Typography>
+                                    <FileIcon
+                                      sx={{ fontSize: 13, color: "text.secondary" }}
+                                    />
+                                    <Typography
+                                      variant="caption"
+                                      sx={{
+                                        fontFamily: "monospace",
+                                        color: "text.secondary",
+                                        fontSize: "0.725rem",
+                                      }}
+                                    >
+                                      {relativePath}
+                                    </Typography>
+                                  </Stack>
                                 )}
                               </Box>
 
@@ -285,6 +311,54 @@ export function ProjectMatcher({
                                 }}
                               />
                             </Stack>
+
+                            {/* Provenance Indicator and Clear Disclaimer */}
+                            {source && (
+                              <Box
+                                sx={{
+                                  p: 1,
+                                  borderRadius: 1,
+                                  backgroundColor: "rgba(0,0,0,0.02)",
+                                  border: "1px solid #e7e5dc",
+                                }}
+                              >
+                                <Stack
+                                  direction="row"
+                                  spacing={0.75}
+                                  sx={{ alignItems: "center", mb: 0.25 }}
+                                >
+                                  <Typography
+                                    variant="caption"
+                                    sx={{ fontWeight: 700, color: "text.primary" }}
+                                  >
+                                    Source: {source.label}
+                                  </Typography>
+                                  <Chip
+                                    size="small"
+                                    label={source.agent}
+                                    sx={{
+                                      height: 18,
+                                      fontSize: "0.675rem",
+                                      borderRadius: 1,
+                                      backgroundColor: "#f0ece3",
+                                    }}
+                                  />
+                                </Stack>
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    display: "block",
+                                    color: "text.secondary",
+                                    fontSize: "0.7rem",
+                                    lineHeight: 1.3,
+                                  }}
+                                >
+                                  Discovered in configured source directory. Agent
+                                  labels denote provenance only, not execution
+                                  compatibility.
+                                </Typography>
+                              </Box>
+                            )}
 
                             <Typography
                               variant="caption"

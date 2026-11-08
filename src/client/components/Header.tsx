@@ -31,13 +31,23 @@ export function Header({ scanInfo, isLoading, onRefresh }: HeaderProps) {
         statusColor = "success";
         StatusIcon = CheckIcon;
         break;
+      case "partial":
+        statusLabel = `Partial scan (${scanInfo.skillCount} skills)`;
+        statusColor = "warning";
+        StatusIcon = WarningIcon;
+        break;
+      case "invalid_configuration":
+        statusLabel = "Invalid source configuration";
+        statusColor = "error";
+        StatusIcon = WarningIcon;
+        break;
       case "not_configured":
-        statusLabel = "SKILLS_ROOT not configured";
+        statusLabel = "Sources not configured";
         statusColor = "warning";
         StatusIcon = WarningIcon;
         break;
       case "invalid_root":
-        statusLabel = "Invalid SKILLS_ROOT directory";
+        statusLabel = "Invalid source directory";
         statusColor = "error";
         StatusIcon = WarningIcon;
         break;

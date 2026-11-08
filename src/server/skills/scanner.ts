@@ -1,41 +1,41 @@
 import { createHash } from "node:crypto";
-import {
-  constants,
-  lstat,
-  open,
-  readdir,
-  realpath,
-} from "node:fs/promises";
+import { constants, lstat, open, readdir, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
-import {
-  isAbsolute,
-  join,
-  parse,
-  relative,
-  resolve,
-  sep,
-} from "node:path";
+import { isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 
 import type {
   ApiWarning,
+  ScanConfigurationError,
   ScanInfo,
   ScanStatus,
+  SkillSourceScanInfo,
+  SkillSourceScanStatus,
   SkillSummary,
 } from "@/src/contracts/api";
 import {
   parseSkillMetadata,
   SkillMetadataError,
 } from "@/src/server/skills/parser";
+import {
+  resolveSkillSources,
+  type SkillSourceConfig,
+  type SourceEnvironment,
+} from "@/src/server/skills/sources";
 
 const DEFAULT_MAX_DEPTH = 6;
 const DEFAULT_MAX_CANDIDATES = 500;
 const DEFAULT_MAX_FILE_BYTES = 256 * 1_024;
+export const DEFAULT_MAX_AGGREGATE_CANDIDATES = 2_000;
 
 export interface ScanConfig {
+  /** Test/integration override for exercising the legacy single-root path. */
   root?: string;
+  /** Test/integration override; production reads process.env server-side. */
+  environment?: SourceEnvironment;
   maxDepth?: number;
   maxCandidates?: number;
   maxFileBytes?: number;
+  maxAggregateCandidates?: number;
 }
 
 export interface ScanResult {
@@ -48,12 +48,33 @@ interface ScanLimits {
   maxDepth: number;
   maxCandidates: number;
   maxFileBytes: number;
+  maxAggregateCandidates: number;
 }
 
-function emptyResult(status: ScanStatus): ScanResult {
+interface AggregateState {
+  candidateCount: number;
+  halted: boolean;
+}
+
+interface SourceScanResult {
+  status: SkillSourceScanStatus;
+  skills: SkillSummary[];
+  warnings: ApiWarning[];
+}
+
+function emptyResult(
+  status: ScanStatus,
+  configurationError?: ScanConfigurationError,
+): ScanResult {
   return {
     skills: [],
-    scan: { status, skillCount: 0, warningCount: 0 },
+    scan: {
+      status,
+      skillCount: 0,
+      warningCount: 0,
+      sources: [],
+      ...(configurationError ? { configurationError } : {}),
+    },
     warnings: [],
   };
 }
@@ -74,8 +95,11 @@ function isContained(root: string, candidate: string): boolean {
   );
 }
 
-function createSkillId(relativePath: string): string {
-  return createHash("sha256").update(relativePath).digest("hex").slice(0, 24);
+function createSkillId(sourceId: string, relativePath: string): string {
+  return createHash("sha256")
+    .update(`${sourceId}\0${relativePath}`)
+    .digest("hex")
+    .slice(0, 24);
 }
 
 async function readBoundedFile(
@@ -119,17 +143,54 @@ async function readBoundedFile(
   }
 }
 
+function sourceInfo(
+  source: SkillSourceConfig,
+  status: SkillSourceScanStatus,
+  count: number,
+): SkillSourceScanInfo {
+  return {
+    id: source.id,
+    label: source.label,
+    agent: source.agent,
+    status,
+    count,
+  };
+}
+
+function deriveStatus(
+  sources: SkillSourceScanInfo[],
+  aggregateHalted: boolean,
+): ScanStatus {
+  if (aggregateHalted) {
+    return "partial";
+  }
+  if (sources.every((source) => source.status === "ready")) {
+    return "ready";
+  }
+  if (sources.some((source) => source.status === "ready")) {
+    return "partial";
+  }
+  if (sources.every((source) => source.status === "invalid_root")) {
+    return "invalid_root";
+  }
+  return "unavailable";
+}
+
 function finalize(
   skills: SkillSummary[],
   warnings: ApiWarning[],
+  sources: SkillSourceScanInfo[],
+  aggregateHalted: boolean,
 ): ScanResult {
   skills.sort(
     (left, right) =>
       left.name.localeCompare(right.name, "en", { sensitivity: "base" }) ||
+      left.sourceId.localeCompare(right.sourceId, "en") ||
       left.relativePath.localeCompare(right.relativePath, "en"),
   );
   warnings.sort(
     (left, right) =>
+      left.sourceId.localeCompare(right.sourceId, "en") ||
       (left.relativePath ?? "").localeCompare(right.relativePath ?? "", "en") ||
       left.code.localeCompare(right.code, "en"),
   );
@@ -137,67 +198,66 @@ function finalize(
   return {
     skills,
     scan: {
-      status: "ready",
+      status: deriveStatus(sources, aggregateHalted),
       skillCount: skills.length,
       warningCount: warnings.length,
+      sources,
     },
     warnings,
   };
 }
 
-export async function scanSkills(config: ScanConfig = {}): Promise<ScanResult> {
-  const configuredRoot = config.root ?? process.env.SKILLS_ROOT ?? "";
-  if (configuredRoot.trim().length === 0) {
-    return emptyResult("not_configured");
-  }
-  if (!isAbsolute(configuredRoot)) {
-    return emptyResult("invalid_root");
+async function scanSource(
+  source: SkillSourceConfig,
+  limits: ScanLimits,
+  aggregate: AggregateState,
+): Promise<SourceScanResult> {
+  if (!isAbsolute(source.root)) {
+    return { status: "invalid_root", skills: [], warnings: [] };
   }
 
-  const normalizedRoot = resolve(/* turbopackIgnore: true */ configuredRoot);
+  const normalizedRoot = resolve(/* turbopackIgnore: true */ source.root);
   if (
     normalizedRoot === parse(normalizedRoot).root ||
     normalizedRoot === resolve(homedir())
   ) {
-    return emptyResult("invalid_root");
+    return { status: "invalid_root", skills: [], warnings: [] };
   }
 
   let rootRealPath: string;
   try {
     const rootStats = await lstat(normalizedRoot);
     if (!rootStats.isDirectory() || rootStats.isSymbolicLink()) {
-      return emptyResult("invalid_root");
+      return { status: "invalid_root", skills: [], warnings: [] };
     }
     rootRealPath = await realpath(/* turbopackIgnore: true */ normalizedRoot);
     if (rootRealPath !== normalizedRoot) {
-      return emptyResult("invalid_root");
+      return { status: "invalid_root", skills: [], warnings: [] };
     }
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    return emptyResult(
-      code === "ENOENT" || code === "ENOTDIR" ? "invalid_root" : "unavailable",
-    );
+    return {
+      status:
+        code === "ENOENT" || code === "ENOTDIR"
+          ? "invalid_root"
+          : "unavailable",
+      skills: [],
+      warnings: [],
+    };
   }
 
-  const limits: ScanLimits = {
-    maxDepth: positiveInteger(config.maxDepth, DEFAULT_MAX_DEPTH),
-    maxCandidates: positiveInteger(
-      config.maxCandidates,
-      DEFAULT_MAX_CANDIDATES,
-    ),
-    maxFileBytes: positiveInteger(config.maxFileBytes, DEFAULT_MAX_FILE_BYTES),
-  };
   const skills: SkillSummary[] = [];
   const warnings: ApiWarning[] = [];
-  let candidateCount = 0;
-  let halted = false;
+  let sourceCandidateCount = 0;
+  let sourceHalted = false;
+  let aggregateReachedHere = false;
 
   async function walk(
     absoluteDirectory: string,
     relativeDirectory: string,
     depth: number,
   ): Promise<void> {
-    if (halted) {
+    if (sourceHalted || aggregate.halted) {
       return;
     }
 
@@ -211,7 +271,7 @@ export async function scanSkills(config: ScanConfig = {}): Promise<ScanResult> {
       entries.sort((left, right) => left.name.localeCompare(right.name, "en"));
 
       for (const entry of entries) {
-        if (halted || entry.isSymbolicLink()) {
+        if (sourceHalted || aggregate.halted || entry.isSymbolicLink()) {
           continue;
         }
 
@@ -230,15 +290,27 @@ export async function scanSkills(config: ScanConfig = {}): Promise<ScanResult> {
           continue;
         }
 
-        if (candidateCount >= limits.maxCandidates) {
+        if (aggregate.candidateCount >= limits.maxAggregateCandidates) {
           warnings.push({
-            code: "SCAN_LIMIT_REACHED",
-            message: "The skill candidate limit was reached.",
+            code: "AGGREGATE_SCAN_LIMIT_REACHED",
+            message: "The aggregate skill candidate limit was reached.",
+            sourceId: source.id,
           });
-          halted = true;
+          aggregate.halted = true;
+          aggregateReachedHere = true;
           break;
         }
-        candidateCount += 1;
+        if (sourceCandidateCount >= limits.maxCandidates) {
+          warnings.push({
+            code: "SCAN_LIMIT_REACHED",
+            message: "The skill candidate limit was reached for this source.",
+            sourceId: source.id,
+          });
+          sourceHalted = true;
+          break;
+        }
+        sourceCandidateCount += 1;
+        aggregate.candidateCount += 1;
 
         const portablePath = toPortablePath(relativeEntry);
         try {
@@ -247,19 +319,24 @@ export async function scanSkills(config: ScanConfig = {}): Promise<ScanResult> {
             continue;
           }
 
-          const source = await readBoundedFile(absoluteEntry, limits.maxFileBytes);
-          if (source === "oversized") {
+          const fileSource = await readBoundedFile(
+            absoluteEntry,
+            limits.maxFileBytes,
+          );
+          if (fileSource === "oversized") {
             warnings.push({
               code: "OVERSIZED_SKILL",
               message: "A SKILL.md file exceeded the metadata size limit.",
+              sourceId: source.id,
               relativePath: portablePath,
             });
             continue;
           }
 
-          const metadata = parseSkillMetadata(source);
+          const metadata = parseSkillMetadata(fileSource);
           skills.push({
-            id: createSkillId(portablePath),
+            id: createSkillId(source.id, portablePath),
+            sourceId: source.id,
             ...metadata,
             relativePath: portablePath,
           });
@@ -273,17 +350,20 @@ export async function scanSkills(config: ScanConfig = {}): Promise<ScanResult> {
               error instanceof SkillMetadataError
                 ? "A SKILL.md file contained invalid metadata."
                 : "An entry could not be read safely.",
+            sourceId: source.id,
             relativePath: portablePath,
           });
         }
       }
-    } catch {
+    } catch (error) {
+      if (relativeDirectory.length === 0) {
+        throw error;
+      }
       warnings.push({
         code: "UNREADABLE_ENTRY",
         message: "An entry could not be read safely.",
-        ...(relativeDirectory
-          ? { relativePath: toPortablePath(relativeDirectory) }
-          : {}),
+        sourceId: source.id,
+        relativePath: toPortablePath(relativeDirectory),
       });
     }
   }
@@ -291,17 +371,55 @@ export async function scanSkills(config: ScanConfig = {}): Promise<ScanResult> {
   try {
     await walk(rootRealPath, "", 0);
   } catch {
-    return emptyResult("unavailable");
+    return { status: "unavailable", skills: [], warnings: [] };
   }
 
-  if (
-    warnings.length === 1 &&
-    warnings[0]?.code === "UNREADABLE_ENTRY" &&
-    warnings[0].relativePath === undefined &&
-    skills.length === 0
-  ) {
-    return emptyResult("unavailable");
+  return {
+    status:
+      aggregateReachedHere && sourceCandidateCount === 0 ? "skipped" : "ready",
+    skills,
+    warnings,
+  };
+}
+
+export async function scanSkills(config: ScanConfig = {}): Promise<ScanResult> {
+  const environment =
+    config.root !== undefined
+      ? { SKILLS_ROOT: config.root }
+      : config.environment;
+  const resolution = resolveSkillSources(environment);
+  if (resolution.status === "not_configured") {
+    return emptyResult("not_configured");
+  }
+  if (resolution.status === "invalid_configuration") {
+    return emptyResult("invalid_configuration", resolution.configurationError);
   }
 
-  return finalize(skills, warnings);
+  const limits: ScanLimits = {
+    maxDepth: positiveInteger(config.maxDepth, DEFAULT_MAX_DEPTH),
+    maxCandidates: positiveInteger(config.maxCandidates, DEFAULT_MAX_CANDIDATES),
+    maxFileBytes: positiveInteger(config.maxFileBytes, DEFAULT_MAX_FILE_BYTES),
+    maxAggregateCandidates: positiveInteger(
+      config.maxAggregateCandidates,
+      DEFAULT_MAX_AGGREGATE_CANDIDATES,
+    ),
+  };
+  const aggregate: AggregateState = { candidateCount: 0, halted: false };
+  const skills: SkillSummary[] = [];
+  const warnings: ApiWarning[] = [];
+  const sources: SkillSourceScanInfo[] = [];
+
+  for (const source of resolution.sources) {
+    if (aggregate.halted) {
+      sources.push(sourceInfo(source, "skipped", 0));
+      continue;
+    }
+
+    const result = await scanSource(source, limits, aggregate);
+    skills.push(...result.skills);
+    warnings.push(...result.warnings);
+    sources.push(sourceInfo(source, result.status, result.skills.length));
+  }
+
+  return finalize(skills, warnings, sources, aggregate.halted);
 }

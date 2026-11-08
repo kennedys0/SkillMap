@@ -1,27 +1,44 @@
 "use client";
 
+import { useId, useState } from "react";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import type { SkillMatch, SkillSummary } from "@/src/contracts/api";
+import type {
+  SkillMatch,
+  SkillSourceScanInfo,
+  SkillSummary,
+} from "@/src/contracts/api";
 import { FileIcon, TagIcon, TargetIcon } from "./Icons";
 
 interface SkillCardProps {
   skill: SkillSummary;
+  source?: SkillSourceScanInfo;
   match?: SkillMatch;
 }
 
-export function SkillCard({ skill, match }: SkillCardProps) {
+const CLAMP_CHARACTER_THRESHOLD = 140;
+
+export function SkillCard({ skill, source, match }: SkillCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const descriptionId = useId();
   const isMatched = Boolean(match);
+
+  const isLongDescription =
+    skill.description.length > CLAMP_CHARACTER_THRESHOLD ||
+    skill.description.includes("\n");
+
+  const sourceLabel = source?.label || source?.agent || skill.sourceId;
 
   return (
     <Paper
       component="article"
       variant="outlined"
       sx={{
-        p: { xs: 2.25, sm: 2.75 },
+        p: { xs: 2, sm: 2.5 },
         borderRadius: 2,
         backgroundColor: isMatched ? "#fbfdfc" : "background.paper",
         borderColor: isMatched ? "primary.main" : "divider",
@@ -34,7 +51,7 @@ export function SkillCard({ skill, match }: SkillCardProps) {
       }}
     >
       <Stack spacing={1.5}>
-        {/* Title and Origin / Match Status */}
+        {/* Title, Source Badge, and Match Badge */}
         <Box>
           <Stack
             direction={{ xs: "column", sm: "row" }}
@@ -45,29 +62,52 @@ export function SkillCard({ skill, match }: SkillCardProps) {
               mb: 0.75,
             }}
           >
-            <Typography
-              component="h3"
-              variant="subtitle1"
-              sx={{
-                fontWeight: 700,
-                color: "text.primary",
-                fontSize: "1.05rem",
-                letterSpacing: "-0.01em",
-              }}
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 0.5 }}
             >
-              {skill.name}
-            </Typography>
+              <Typography
+                component="h3"
+                variant="subtitle1"
+                sx={{
+                  fontWeight: 700,
+                  color: "text.primary",
+                  fontSize: "1rem",
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                {skill.name}
+              </Typography>
+
+              {sourceLabel && (
+                <Chip
+                  size="small"
+                  label={sourceLabel}
+                  variant="outlined"
+                  sx={{
+                    fontSize: "0.725rem",
+                    fontWeight: 600,
+                    borderRadius: 1.5,
+                    height: 22,
+                    borderColor: "divider",
+                    backgroundColor: "rgba(0,0,0,0.03)",
+                    color: "text.secondary",
+                  }}
+                />
+              )}
+            </Stack>
 
             {isMatched && match && (
               <Chip
                 size="small"
-                icon={<TargetIcon sx={{ fontSize: 15 }} />}
+                icon={<TargetIcon sx={{ fontSize: 14 }} />}
                 label={`Match: ${match.score} pts`}
                 sx={{
                   backgroundColor: "#e8f0eb",
                   color: "#1c4a38",
                   fontWeight: 700,
-                  fontSize: "0.775rem",
+                  fontSize: "0.75rem",
                   borderRadius: 1.5,
                   height: 24,
                 }}
@@ -76,18 +116,14 @@ export function SkillCard({ skill, match }: SkillCardProps) {
           </Stack>
 
           {/* Safe relative origin path */}
-          <Stack
-            direction="row"
-            spacing={0.75}
-            sx={{ alignItems: "center" }}
-          >
+          <Stack direction="row" spacing={0.75} sx={{ alignItems: "center" }}>
             <FileIcon sx={{ fontSize: 14, color: "text.secondary" }} />
             <Typography
               variant="caption"
               sx={{
                 fontFamily: "monospace",
                 color: "text.secondary",
-                fontSize: "0.775rem",
+                fontSize: "0.75rem",
                 wordBreak: "break-all",
               }}
             >
@@ -96,17 +132,52 @@ export function SkillCard({ skill, match }: SkillCardProps) {
           </Stack>
         </Box>
 
-        {/* Skill description */}
-        <Typography
-          variant="body2"
-          sx={{
-            color: "text.primary",
-            lineHeight: 1.6,
-            wordBreak: "break-word",
-          }}
-        >
-          {skill.description}
-        </Typography>
+        {/* Skill description with accessible clamping and expand toggle */}
+        <Box>
+          <Typography
+            id={descriptionId}
+            variant="body2"
+            sx={{
+              color: "text.primary",
+              lineHeight: 1.55,
+              wordBreak: "break-word",
+              ...(!isExpanded &&
+                isLongDescription && {
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }),
+            }}
+          >
+            {skill.description}
+          </Typography>
+
+          {isLongDescription && (
+            <Button
+              size="small"
+              onClick={() => setIsExpanded((prev) => !prev)}
+              aria-expanded={isExpanded}
+              aria-controls={descriptionId}
+              sx={{
+                p: 0,
+                mt: 0.5,
+                minWidth: 0,
+                textTransform: "none",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                color: "primary.main",
+                display: "inline-block",
+                "&:hover": {
+                  textDecoration: "underline",
+                  backgroundColor: "transparent",
+                },
+              }}
+            >
+              {isExpanded ? "Show less" : "Show more"}
+            </Button>
+          )}
+        </Box>
 
         {/* Matched explanation if matched */}
         {isMatched && match && (
@@ -120,7 +191,12 @@ export function SkillCard({ skill, match }: SkillCardProps) {
           >
             <Typography
               variant="caption"
-              sx={{ display: "block", color: "#1c4a38", fontWeight: 600, mb: 0.5 }}
+              sx={{
+                display: "block",
+                color: "#1c4a38",
+                fontWeight: 600,
+                mb: 0.5,
+              }}
             >
               Why this matches: {match.reason}
             </Typography>
@@ -144,7 +220,7 @@ export function SkillCard({ skill, match }: SkillCardProps) {
                     size="small"
                     sx={{
                       height: 20,
-                      fontSize: "0.725rem",
+                      fontSize: "0.7rem",
                       backgroundColor: "#ffffff",
                       borderColor: "#c1dacb",
                       border: "1px solid",
@@ -165,7 +241,7 @@ export function SkillCard({ skill, match }: SkillCardProps) {
             spacing={0.75}
             useFlexGap
             sx={{
-              pt: 0.5,
+              pt: 0.25,
               alignItems: "center",
               flexWrap: "wrap",
             }}

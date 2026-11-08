@@ -15,8 +15,10 @@ npm audit --audit-level=high
 
 ## Unit coverage
 - Metadata parser: well-formed frontmatter, missing fields, malformed YAML, weird Unicode.
-- Scanner: configured root only; no env, empty root, permission errors; bounded recursion; symlink skip; non-SKILL.md files ignored; oversized files ignored.
-- Matching: case normalization, relevant matches, irrelevant projects yield none, stable ordering/tie handling, explanations grounded in exact terms.
+- Source configuration: valid 1–16 source arrays, exact fields, lowercase tokens, unique IDs, absolute roots, neutral `shared`, legacy fallback only when JSON is absent, and malformed-present fail-closed behavior.
+- Scanner: legacy root, two roots with duplicate names, partial success, protected/missing/unreadable roots, bounded recursion, symlink escape, non-`SKILL.md` files ignored, malformed/oversized files skipped, 500-candidate per-root and 2,000-candidate aggregate handling, deterministic warning attribution, stable source-specific IDs, and no absolute paths in results.
+- Matching: case normalization, relevant matches, irrelevant projects yield none, stable ordering/tie handling, duplicate-name source IDs, and explanations grounded in exact terms.
+- Routes/contracts: additive source fields pass through both endpoints, warnings retain source attribution, malformed requests stay structured, and unexpected errors reveal no stack/path details.
 
 ## UI/manual checks
 - Desktop and narrow mobile, keyboard-only navigation, visible focus, no fake initial cards.
