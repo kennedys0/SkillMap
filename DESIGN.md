@@ -4,10 +4,12 @@
 Human, calm, practical developer tool. Clear visual hierarchy; minimal ornament; slightly tactile surfaces allowed. Implement with MUI primitives; if an actually installed Taste Engine claymorphism skill is available, follow it without sacrificing usability. No gradients, animation clutter or trendy badges just to fill space.
 
 ## Screen structure
-- Header with product title and concise purpose.
-- Skill inventory: search/filter, count derived from real scan results, each item with title, optional description, and safe origin label.
-- Project matcher: multiline project brief, Match action, ordered recommendations with reasons.
-- Helpful empty state explaining configuration; errors state what can be fixed without leaking sensitive paths.
+- Header with product title, scanner status badge, and rescan trigger.
+- Navigation tabs switching between "Skill Catalog & Matcher" and "Skill Pack Builder".
+- Skill inventory: search/filter, real scan counts, with explicit Add to Pack / In Pack actions on each card.
+- Project matcher: multiline brief, Match action, ordered recommendations with explicit Add to Pack actions (never auto-selected).
+- Skill Pack Builder workspace: pack selector, metadata editor (name & project brief), deterministic export actions (JSON/MD), confirmed delete dialog, import preview dialog, and reconciled selected skills list with manual role assignment dropdowns and availability chips.
+- Helpful empty states explaining configuration and pack assembly without leaking sensitive paths.
 
 ## Required states
 Loading; no SKILLS_ROOT; root exists but no skills; malformed metadata warning; query returns no match; successful results; API failure. No hardcoded cards or metrics with synthetic data.

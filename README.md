@@ -44,6 +44,17 @@ Matching normalizes text with Unicode NFKC, lowercases it, removes punctuation, 
 
 `POST /api/match` caps JSON bodies at 8 KiB and permits 30 requests per 60-second process window. The limiter suits this single-process local app; it isn't a distributed deployment control.
 
+## Project Skill Pack Builder
+
+SkillMap includes a browser-only Project Skill Pack Builder that lets developers assemble references to discovered skills into named packs, assign manual agent roles (`codex`, `antigravity`, `hermes`, `unassigned`), and exchange packs as deterministic JSON or Markdown files.
+
+- **Local Persistence**: Skill packs are stored locally in the browser under the `mochi.skillmap.skill-packs.v1` localStorage key (up to 50 packs, 256 selections per pack).
+- **Graceful Storage Fallback**: If browser storage is disabled or quota is exceeded, the pack remains fully usable and exportable in memory.
+- **Exact Catalog Reconciliation**: When skills are moved, renamed, or deleted across catalog rescans, references remain intact and are clearly flagged as unavailable without auto-dropping or remapping.
+- **Deterministic Export**: Export canonical `.skill-pack.json` manifests with stable key ordering or sanitized `.md` summaries.
+- **Strict Import Validation**: Imported `.json` files are byte-checked (max 256 KiB) and verified client-side against the v1 schema, rejecting prototype pollution, unexpected fields, credentials, or malicious path traversal.
+- **Manual Role Intent**: Roles reflect explicit developer intent, not verified execution compatibility.
+
 ## Checks
 
 ```bash
