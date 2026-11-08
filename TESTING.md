@@ -1,7 +1,17 @@
 # Testing — MOCHI SkillMap MVP
 
 ## Commands
-Codex will document actual commands after scaffolding. Expected categories: lint, typecheck, unit tests and production build. Do not claim they passed until executed and captured in the Multica issue.
+Run the release checks from the repository root:
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm audit --audit-level=high
+```
+
+`npm test -- path/to/file.test.ts` runs one or more named TypeScript test files. The bare command discovers every `*.test.ts` file and fails when none exist.
 
 ## Unit coverage
 - Metadata parser: well-formed frontmatter, missing fields, malformed YAML, weird Unicode.
