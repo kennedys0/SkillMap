@@ -63,10 +63,16 @@ export function SkillMapApp() {
     };
   }, []);
 
-  // Manual rescan handler
+  // Manual rescan handler - strictly invalidates stale match recommendations
   const handleRefresh = useCallback(async () => {
     setIsLoading(true);
     setApiError(null);
+
+    // Invalidate stale match results upon rescanning per design requirements
+    setMatches([]);
+    setHasRunMatch(false);
+    setMatchError(null);
+
     try {
       const response = await fetchSkills();
       setSkills(response.data.skills);
@@ -113,10 +119,18 @@ export function SkillMapApp() {
     setHasRunMatch(false);
   };
 
-  const isScannerReady = scanInfo?.status === "ready";
+  const isScannerReady =
+    scanInfo?.status === "ready" || scanInfo?.status === "partial";
 
   return (
-    <Container maxWidth="lg" component="main" sx={{ py: { xs: 2.5, md: 4 } }}>
+    <Container
+      maxWidth="xl"
+      component="main"
+      sx={{
+        py: { xs: 2, sm: 3, md: 4 },
+        px: { xs: 1.5, sm: 2.5, md: 3.5 },
+      }}
+    >
       <Header
         scanInfo={scanInfo}
         isLoading={isLoading}
@@ -131,11 +145,12 @@ export function SkillMapApp() {
       />
 
       <Box sx={{ flexGrow: 1 }}>
-        <Grid container spacing={{ xs: 3, md: 4 }}>
-          {/* Left Column: Skills Inventory */}
-          <Grid size={{ xs: 12, md: 7 }}>
+        <Grid container spacing={{ xs: 2.5, md: 3.5 }}>
+          {/* Left Column: Skills Inventory (Efficient desktop space, stacked mobile) */}
+          <Grid size={{ xs: 12, md: 7, lg: 7.5 }}>
             <SkillInventory
               skills={skills}
+              sources={scanInfo?.sources}
               isLoading={isLoading}
               matches={matches}
               scannerReady={isScannerReady}
@@ -143,9 +158,10 @@ export function SkillMapApp() {
           </Grid>
 
           {/* Right Column: Project Matcher Form & Results */}
-          <Grid size={{ xs: 12, md: 5 }}>
+          <Grid size={{ xs: 12, md: 5, lg: 4.5 }}>
             <ProjectMatcher
               skills={skills}
+              sources={scanInfo?.sources}
               matches={matches}
               isMatching={isMatching}
               matchError={matchError}
