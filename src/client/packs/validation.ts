@@ -168,6 +168,7 @@ function validateSelection(
     value.relativePath.length <= MAX_SKILL_PACK_RELATIVE_PATH_CHARACTERS &&
     value.relativePath === value.relativePath.trim() &&
     !value.relativePath.startsWith("/") &&
+    !/^[a-z]:\//iu.test(value.relativePath) &&
     !value.relativePath.includes("\\") &&
     !value.relativePath.includes("//") &&
     value.relativePath.endsWith("SKILL.md") &&

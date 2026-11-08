@@ -93,6 +93,14 @@ describe("skill pack import validation", () => {
       code: "INVALID_RELATIVE_PATH",
     },
     {
+      name: "Windows drive path",
+      mutate: (pack) => ({
+        ...pack,
+        selections: [{ ...(pack.selections as object[])[0], relativePath: "C:/Users/a/SKILL.md" }],
+      }),
+      code: "INVALID_RELATIVE_PATH",
+    },
+    {
       name: "path traversal",
       mutate: (pack) => ({
         ...pack,
