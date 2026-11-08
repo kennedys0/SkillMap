@@ -10,6 +10,7 @@ describe("client api", () => {
         skills: [
           {
             id: "skill-1",
+            sourceId: "codex",
             name: "Test Skill",
             description: "A test description",
             relativePath: "test/SKILL.md",
@@ -20,6 +21,15 @@ describe("client api", () => {
           status: "ready",
           skillCount: 1,
           warningCount: 0,
+          sources: [
+            {
+              id: "codex",
+              label: "Codex skills",
+              agent: "codex",
+              status: "ready",
+              count: 1,
+            },
+          ],
         },
       },
       warnings: [],
@@ -83,6 +93,15 @@ describe("client api", () => {
           status: "ready",
           skillCount: 1,
           warningCount: 0,
+          sources: [
+            {
+              id: "codex",
+              label: "Codex skills",
+              agent: "codex",
+              status: "ready",
+              count: 1,
+            },
+          ],
         },
       },
       warnings: [],

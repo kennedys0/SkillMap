@@ -1,11 +1,39 @@
 export type ScanStatus =
   | "ready"
+  | "partial"
   | "not_configured"
+  | "invalid_configuration"
   | "invalid_root"
   | "unavailable";
 
+export type SkillSourceScanStatus =
+  | "ready"
+  | "invalid_root"
+  | "unavailable"
+  | "skipped";
+
+export interface SkillSourceScanInfo {
+  id: string;
+  label: string;
+  agent: string;
+  status: SkillSourceScanStatus;
+  count: number;
+}
+
+export type ScanConfigurationErrorCode =
+  | "INVALID_JSON"
+  | "INVALID_SOURCE_LIST"
+  | "INVALID_SOURCE"
+  | "DUPLICATE_SOURCE_ID";
+
+export interface ScanConfigurationError {
+  code: ScanConfigurationErrorCode;
+  message: string;
+}
+
 export interface SkillSummary {
   id: string;
+  sourceId: string;
   name: string;
   description: string;
   relativePath: string;
@@ -16,6 +44,8 @@ export interface ScanInfo {
   status: ScanStatus;
   skillCount: number;
   warningCount: number;
+  sources: SkillSourceScanInfo[];
+  configurationError?: ScanConfigurationError;
 }
 
 export type ApiWarningCode =
@@ -27,6 +57,7 @@ export type ApiWarningCode =
 export interface ApiWarning {
   code: ApiWarningCode;
   message: string;
+  sourceId: string;
   relativePath?: string;
 }
 
