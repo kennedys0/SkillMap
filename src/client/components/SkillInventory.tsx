@@ -26,6 +26,8 @@ interface SkillInventoryProps {
   isLoading: boolean;
   matches: SkillMatch[];
   scannerReady: boolean;
+  isSkillInPack?: (skill: SkillSummary) => boolean;
+  onToggleSkillInPack?: (skill: SkillSummary) => void;
 }
 
 export function SkillInventory({
@@ -34,6 +36,8 @@ export function SkillInventory({
   isLoading,
   matches,
   scannerReady,
+  isSkillInPack,
+  onToggleSkillInPack,
 }: SkillInventoryProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -439,6 +443,12 @@ export function SkillInventory({
                 skill={skill}
                 source={sourcesMap.get(skill.sourceId)}
                 match={matchMap.get(skill.id)}
+                inPack={isSkillInPack ? isSkillInPack(skill) : false}
+                onTogglePack={
+                  onToggleSkillInPack
+                    ? () => onToggleSkillInPack(skill)
+                    : undefined
+                }
               />
             ))}
           </Stack>

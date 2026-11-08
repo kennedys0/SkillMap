@@ -19,7 +19,7 @@ import {
   MAX_PROJECT_DESCRIPTION_LENGTH,
   validateProjectDescription,
 } from "../validate";
-import { FileIcon, TargetIcon } from "./Icons";
+import { CheckIcon, FileIcon, PlusIcon, TargetIcon } from "./Icons";
 
 interface ProjectMatcherProps {
   skills: SkillSummary[];
@@ -30,6 +30,8 @@ interface ProjectMatcherProps {
   hasRunMatch: boolean;
   onMatch: (projectDescription: string) => void;
   onClear: () => void;
+  isSkillInPack?: (skill: SkillSummary) => boolean;
+  onToggleSkillInPack?: (skill: SkillSummary) => void;
 }
 
 export function ProjectMatcher({
@@ -41,6 +43,8 @@ export function ProjectMatcher({
   hasRunMatch,
   onMatch,
   onClear,
+  isSkillInPack,
+  onToggleSkillInPack,
 }: ProjectMatcherProps) {
   const [description, setDescription] = useState("");
   const inputId = useId();
@@ -299,17 +303,74 @@ export function ProjectMatcher({
                                 )}
                               </Box>
 
-                              <Chip
-                                size="small"
-                                label={`${match.score} pts`}
-                                sx={{
-                                  backgroundColor: "#e8f0eb",
-                                  color: "#1c4a38",
-                                  fontWeight: 700,
-                                  fontSize: "0.775rem",
-                                  height: 24,
-                                }}
-                              />
+                              <Stack
+                                direction="row"
+                                spacing={1}
+                                sx={{ alignItems: "center" }}
+                              >
+                                <Chip
+                                  size="small"
+                                  label={`${match.score} pts`}
+                                  sx={{
+                                    backgroundColor: "#e8f0eb",
+                                    color: "#1c4a38",
+                                    fontWeight: 700,
+                                    fontSize: "0.775rem",
+                                    height: 24,
+                                  }}
+                                />
+
+                                {skill && onToggleSkillInPack && (
+                                  <Button
+                                    size="small"
+                                    variant={
+                                      isSkillInPack?.(skill)
+                                        ? "contained"
+                                        : "outlined"
+                                    }
+                                    color="primary"
+                                    onClick={() => onToggleSkillInPack(skill)}
+                                    startIcon={
+                                      isSkillInPack?.(skill) ? (
+                                        <CheckIcon sx={{ fontSize: 14 }} />
+                                      ) : (
+                                        <PlusIcon sx={{ fontSize: 14 }} />
+                                      )
+                                    }
+                                    aria-label={
+                                      isSkillInPack?.(skill)
+                                        ? `Remove ${displayName} from pack`
+                                        : `Add ${displayName} to pack`
+                                    }
+                                    aria-pressed={Boolean(isSkillInPack?.(skill))}
+                                    sx={{
+                                      height: 24,
+                                      fontSize: "0.725rem",
+                                      fontWeight: 600,
+                                      borderRadius: 1.5,
+                                      textTransform: "none",
+                                      px: 1.25,
+                                      backgroundColor: isSkillInPack?.(skill)
+                                        ? "primary.main"
+                                        : "transparent",
+                                      color: isSkillInPack?.(skill)
+                                        ? "primary.contrastText"
+                                        : "primary.main",
+                                      borderColor: "primary.main",
+                                      "&:hover": {
+                                        backgroundColor: isSkillInPack?.(skill)
+                                          ? "primary.dark"
+                                          : "rgba(49, 92, 76, 0.08)",
+                                        borderColor: "primary.dark",
+                                      },
+                                    }}
+                                  >
+                                    {isSkillInPack?.(skill)
+                                      ? "In Pack"
+                                      : "Add to Pack"}
+                                  </Button>
+                                )}
+                              </Stack>
                             </Stack>
 
                             {/* Provenance Indicator and Clear Disclaimer */}

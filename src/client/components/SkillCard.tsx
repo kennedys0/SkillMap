@@ -12,17 +12,25 @@ import type {
   SkillSourceScanInfo,
   SkillSummary,
 } from "@/src/contracts/api";
-import { FileIcon, TagIcon, TargetIcon } from "./Icons";
+import { CheckIcon, FileIcon, PlusIcon, TagIcon, TargetIcon } from "./Icons";
 
 interface SkillCardProps {
   skill: SkillSummary;
   source?: SkillSourceScanInfo;
   match?: SkillMatch;
+  inPack?: boolean;
+  onTogglePack?: () => void;
 }
 
 const CLAMP_CHARACTER_THRESHOLD = 140;
 
-export function SkillCard({ skill, source, match }: SkillCardProps) {
+export function SkillCard({
+  skill,
+  source,
+  match,
+  inPack = false,
+  onTogglePack,
+}: SkillCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const descriptionId = useId();
   const isMatched = Boolean(match);
@@ -98,21 +106,68 @@ export function SkillCard({ skill, source, match }: SkillCardProps) {
               )}
             </Stack>
 
-            {isMatched && match && (
-              <Chip
-                size="small"
-                icon={<TargetIcon sx={{ fontSize: 14 }} />}
-                label={`Match: ${match.score} pts`}
-                sx={{
-                  backgroundColor: "#e8f0eb",
-                  color: "#1c4a38",
-                  fontWeight: 700,
-                  fontSize: "0.75rem",
-                  borderRadius: 1.5,
-                  height: 24,
-                }}
-              />
-            )}
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 0.5 }}
+            >
+              {isMatched && match && (
+                <Chip
+                  size="small"
+                  icon={<TargetIcon sx={{ fontSize: 14 }} />}
+                  label={`Match: ${match.score} pts`}
+                  sx={{
+                    backgroundColor: "#e8f0eb",
+                    color: "#1c4a38",
+                    fontWeight: 700,
+                    fontSize: "0.75rem",
+                    borderRadius: 1.5,
+                    height: 24,
+                  }}
+                />
+              )}
+
+              {onTogglePack && (
+                <Button
+                  size="small"
+                  variant={inPack ? "contained" : "outlined"}
+                  color="primary"
+                  onClick={onTogglePack}
+                  startIcon={
+                    inPack ? (
+                      <CheckIcon sx={{ fontSize: 14 }} />
+                    ) : (
+                      <PlusIcon sx={{ fontSize: 14 }} />
+                    )
+                  }
+                  aria-label={
+                    inPack
+                      ? `Remove ${skill.name} from pack`
+                      : `Add ${skill.name} to pack`
+                  }
+                  aria-pressed={inPack}
+                  sx={{
+                    height: 24,
+                    fontSize: "0.725rem",
+                    fontWeight: 600,
+                    borderRadius: 1.5,
+                    textTransform: "none",
+                    px: 1.25,
+                    backgroundColor: inPack ? "primary.main" : "transparent",
+                    color: inPack ? "primary.contrastText" : "primary.main",
+                    borderColor: "primary.main",
+                    "&:hover": {
+                      backgroundColor: inPack
+                        ? "primary.dark"
+                        : "rgba(49, 92, 76, 0.08)",
+                      borderColor: "primary.dark",
+                    },
+                  }}
+                >
+                  {inPack ? "In Pack" : "Add to Pack"}
+                </Button>
+              )}
+            </Stack>
           </Stack>
 
           {/* Safe relative origin path */}
