@@ -26,6 +26,19 @@ Browser (Next.js UI + MUI) → same-origin Next.js server routes/actions (Node.j
 - Matching uses Unicode NFKC normalization and exact alphanumeric terms. Stop words do not score; names weigh 3, tags 2 and descriptions 1.
 - One term contributes only its highest applicable field weight. Results sort by score descending, then skill name and stable ID ascending.
 
+## Project Skill Pack Builder Architecture
+
+The Skill Pack Builder operates entirely within the browser client layer:
+- **Contracts (`src/contracts/skill-pack.ts`)**: Defines `SkillPackV1`, `SkillPackSelectionV1`, `PackAgentRole`, and fixed limits (50 packs, 256 selections, 256 KiB import, 120 chars name, 2,000 chars description).
+- **Core Modules (`src/client/packs/`)**:
+  - `model.ts`: Pure constructors and deterministic reference keys.
+  - `validation.ts`: Fail-closed UTF-8 byte checking and schema validation, rejecting prototype pollution and unsafe inputs.
+  - `serialization.ts`: Canonical deterministic JSON export with sorted keys/selections and escaped Markdown generation.
+  - `storage.ts`: LocalStorage persistence handling with fail-closed corruption guards and in-memory fallback.
+  - `reconcile.ts`: Exact reference identity matching (`sourceId + relativePath + skillId + name`) preventing accidental remapping.
+  - `builder-state.ts`: Immutable state operations for adding, removing, role assignment, and upserting packs.
+- **Client Storage Boundary**: Packs reside exclusively in client browser state and `localStorage`. No server HTTP endpoints, filesystem writes, telemetry, or external sync APIs are added.
+
 ## Technologies
 Next.js App Router + TypeScript, Node runtime on API routes, MUI. Use relevant packages only with specific justification. No database. No backend network fetch required for matching.
 
