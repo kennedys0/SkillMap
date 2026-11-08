@@ -6,6 +6,7 @@ import { filterSkills } from "./filter";
 const sampleSkills: SkillSummary[] = [
   {
     id: "skill-1",
+    sourceId: "test",
     name: "React Frontend Architect",
     description: "Build accessible React and Next.js user interfaces with MUI.",
     relativePath: "frontend/react/SKILL.md",
@@ -13,6 +14,7 @@ const sampleSkills: SkillSummary[] = [
   },
   {
     id: "skill-2",
+    sourceId: "test",
     name: "Node.js Backend Engineer",
     description: "Implement secure REST APIs, validation, and scanner logic.",
     relativePath: "backend/node/SKILL.md",
@@ -20,6 +22,7 @@ const sampleSkills: SkillSummary[] = [
   },
   {
     id: "skill-3",
+    sourceId: "test",
     name: "Playwright End-to-End Tester",
     description: "Automate browser testing and verify web application flows.",
     relativePath: "testing/playwright/SKILL.md",

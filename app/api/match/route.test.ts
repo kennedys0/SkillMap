@@ -9,13 +9,27 @@ const readyScan: ScanResult = {
   skills: [
     {
       id: "skill-1",
+      sourceId: "codex",
       name: "React Builder",
       description: "Testing accessible interfaces",
       relativePath: "react/SKILL.md",
       tags: ["API"],
     },
   ],
-  scan: { status: "ready", skillCount: 1, warningCount: 0 },
+  scan: {
+    status: "ready",
+    skillCount: 1,
+    warningCount: 0,
+    sources: [
+      {
+        id: "codex",
+        label: "Codex skills",
+        agent: "codex",
+        status: "ready",
+        count: 1,
+      },
+    ],
+  },
   warnings: [],
 };
 
@@ -68,7 +82,12 @@ describe("POST /api/match", () => {
   it("passes through non-ready scanner state with no fabricated matches", async () => {
     const unavailable: ScanResult = {
       skills: [],
-      scan: { status: "not_configured", skillCount: 0, warningCount: 0 },
+      scan: {
+        status: "not_configured",
+        skillCount: 0,
+        warningCount: 0,
+        sources: [],
+      },
       warnings: [],
     };
     const POST = createMatchHandler(dependencies(unavailable));

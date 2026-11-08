@@ -52,7 +52,8 @@ export type ApiWarningCode =
   | "MALFORMED_SKILL"
   | "OVERSIZED_SKILL"
   | "UNREADABLE_ENTRY"
-  | "SCAN_LIMIT_REACHED";
+  | "SCAN_LIMIT_REACHED"
+  | "AGGREGATE_SCAN_LIMIT_REACHED";
 
 export interface ApiWarning {
   code: ApiWarningCode;

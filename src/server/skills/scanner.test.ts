@@ -25,6 +25,14 @@ async function createSkill(
   return skillPath;
 }
 
+function source(id: string, root: string, agent = id) {
+  return { id, label: `${id} skills`, agent, root };
+}
+
+function environment(sources: ReturnType<typeof source>[]) {
+  return { SKILL_SOURCES_JSON: JSON.stringify(sources) };
+}
+
 async function withTemporaryDirectory(
   operation: (directory: string) => Promise<void>,
 ): Promise<void> {
@@ -38,21 +46,62 @@ async function withTemporaryDirectory(
 }
 
 describe("scanSkills", () => {
-  it("reports an unconfigured root without scanning a fallback", async () => {
+  it("reports unconfigured legacy settings without scanning a fallback", async () => {
     const result = await scanSkills({ root: "" });
 
     assert.deepEqual(result, {
       skills: [],
-      scan: { status: "not_configured", skillCount: 0, warningCount: 0 },
+      scan: {
+        status: "not_configured",
+        skillCount: 0,
+        warningCount: 0,
+        sources: [],
+      },
       warnings: [],
     });
   });
 
-  it("rejects relative, filesystem-root, and home-directory roots", async () => {
-    for (const root of ["relative/skills", "/", homedir()]) {
-      const result = await scanSkills({ root });
+  it("fails closed on malformed multi-source JSON without using SKILLS_ROOT", async () => {
+    await withTemporaryDirectory(async (root) => {
+      await createSkill(root, "secret", "Must Not Be Scanned");
+
+      const result = await scanSkills({
+        environment: {
+          SKILL_SOURCES_JSON: "not-json",
+          SKILLS_ROOT: root,
+        },
+      });
+
+      assert.equal(result.scan.status, "invalid_configuration");
+      assert.equal(result.scan.configurationError?.code, "INVALID_JSON");
+      assert.deepEqual(result.scan.sources, []);
+      assert.deepEqual(result.skills, []);
+      assert.equal(JSON.stringify(result).includes(root), false);
+      assert.equal(JSON.stringify(result).includes("Must Not Be Scanned"), false);
+    });
+  });
+
+  it("rejects relative configuration and protected absolute roots safely", async () => {
+    const relative = await scanSkills({
+      environment: environment([source("relative", "relative/skills")]),
+    });
+    assert.equal(relative.scan.status, "invalid_configuration");
+
+    for (const root of ["/", homedir()]) {
+      const result = await scanSkills({
+        environment: environment([source("protected", root)]),
+      });
       assert.equal(result.scan.status, "invalid_root");
       assert.deepEqual(result.skills, []);
+      assert.deepEqual(result.scan.sources, [
+        {
+          id: "protected",
+          label: "protected skills",
+          agent: "protected",
+          status: "invalid_root",
+          count: 0,
+        },
+      ]);
       assert.equal(JSON.stringify(result).includes(root), false);
     }
   });
@@ -69,13 +118,26 @@ describe("scanSkills", () => {
     });
   });
 
-  it("returns a ready empty result for an empty root", async () => {
+  it("returns a ready empty result for an empty legacy root", async () => {
     await withTemporaryDirectory(async (root) => {
       const result = await scanSkills({ root });
 
       assert.deepEqual(result, {
         skills: [],
-        scan: { status: "ready", skillCount: 0, warningCount: 0 },
+        scan: {
+          status: "ready",
+          skillCount: 0,
+          warningCount: 0,
+          sources: [
+            {
+              id: "legacy",
+              label: "Legacy skills",
+              agent: "shared",
+              status: "ready",
+              count: 0,
+            },
+          ],
+        },
         warnings: [],
       });
     });
@@ -92,48 +154,98 @@ describe("scanSkills", () => {
 
       const result = await scanSkills({ root });
 
-      assert.deepEqual(
-        result.skills.map((skill) => skill.name),
-        ["Alpha Skill"],
-      );
+      assert.deepEqual(result.skills.map((skill) => skill.name), ["Alpha Skill"]);
+      assert.equal(result.skills[0]?.sourceId, "legacy");
       assert.equal(JSON.stringify(result).includes("Outside Skill"), false);
     });
   });
 
-  it("enforces recursion depth", async () => {
+  it("enforces recursion depth per root", async () => {
     await withTemporaryDirectory(async (root) => {
       await createSkill(root, "one/two", "Within Depth");
       await createSkill(root, "one/two/three", "Beyond Depth");
 
       const result = await scanSkills({ root, maxDepth: 2 });
 
-      assert.deepEqual(
-        result.skills.map((skill) => skill.name),
-        ["Within Depth"],
-      );
+      assert.deepEqual(result.skills.map((skill) => skill.name), ["Within Depth"]);
     });
   });
 
-  it("caps candidate count deterministically", async () => {
-    await withTemporaryDirectory(async (root) => {
-      await createSkill(root, "charlie", "Charlie");
-      await createSkill(root, "alpha", "Alpha");
-      await createSkill(root, "bravo", "Bravo");
+  it("caps each root independently and attributes limit warnings", async () => {
+    await withTemporaryDirectory(async (parent) => {
+      const first = join(parent, "first");
+      const second = join(parent, "second");
+      for (const root of [first, second]) {
+        await createSkill(root, "charlie", "Charlie");
+        await createSkill(root, "alpha", "Alpha");
+        await createSkill(root, "bravo", "Bravo");
+      }
 
-      const result = await scanSkills({ root, maxCandidates: 2 });
+      const result = await scanSkills({
+        environment: environment([
+          source("first", first),
+          source("second", second),
+        ]),
+        maxCandidates: 2,
+      });
 
-      assert.deepEqual(
-        result.skills.map((skill) => skill.name),
-        ["Alpha", "Bravo"],
-      );
-      assert.deepEqual(
-        result.warnings.map((warning) => warning.code),
-        ["SCAN_LIMIT_REACHED"],
-      );
+      assert.equal(result.skills.length, 4);
+      assert.deepEqual(result.scan.sources.map(({ id, count }) => ({ id, count })), [
+        { id: "first", count: 2 },
+        { id: "second", count: 2 },
+      ]);
+      assert.deepEqual(result.warnings, [
+        {
+          code: "SCAN_LIMIT_REACHED",
+          message: "The skill candidate limit was reached for this source.",
+          sourceId: "first",
+        },
+        {
+          code: "SCAN_LIMIT_REACHED",
+          message: "The skill candidate limit was reached for this source.",
+          sourceId: "second",
+        },
+      ]);
     });
   });
 
-  it("skips oversized files with a safe warning", async () => {
+  it("halts at the aggregate candidate limit and marks remaining sources skipped", async () => {
+    await withTemporaryDirectory(async (parent) => {
+      const first = join(parent, "first");
+      const second = join(parent, "second");
+      const third = join(parent, "third");
+      await createSkill(first, "alpha", "Alpha");
+      await createSkill(first, "bravo", "Bravo");
+      await createSkill(second, "charlie", "Charlie");
+      await createSkill(third, "delta", "Delta");
+
+      const result = await scanSkills({
+        environment: environment([
+          source("first", first),
+          source("second", second),
+          source("third", third),
+        ]),
+        maxAggregateCandidates: 2,
+      });
+
+      assert.equal(result.scan.status, "partial");
+      assert.deepEqual(result.skills.map((skill) => skill.name), ["Alpha", "Bravo"]);
+      assert.deepEqual(result.scan.sources.map(({ id, status, count }) => ({ id, status, count })), [
+        { id: "first", status: "ready", count: 2 },
+        { id: "second", status: "skipped", count: 0 },
+        { id: "third", status: "skipped", count: 0 },
+      ]);
+      assert.deepEqual(result.warnings, [
+        {
+          code: "AGGREGATE_SCAN_LIMIT_REACHED",
+          message: "The aggregate skill candidate limit was reached.",
+          sourceId: "second",
+        },
+      ]);
+    });
+  });
+
+  it("skips oversized files with source-attributed safe warnings", async () => {
     await withTemporaryDirectory(async (root) => {
       await createSkill(root, "large", "Large");
 
@@ -144,6 +256,7 @@ describe("scanSkills", () => {
         {
           code: "OVERSIZED_SKILL",
           message: "A SKILL.md file exceeded the metadata size limit.",
+          sourceId: "legacy",
           relativePath: "large/SKILL.md",
         },
       ]);
@@ -151,7 +264,7 @@ describe("scanSkills", () => {
     });
   });
 
-  it("skips malformed metadata and continues scanning", async () => {
+  it("attributes malformed metadata and continues scanning", async () => {
     await withTemporaryDirectory(async (root) => {
       await createSkill(root, "good", "Good Skill");
       const badDirectory = join(root, "bad");
@@ -160,14 +273,12 @@ describe("scanSkills", () => {
 
       const result = await scanSkills({ root });
 
-      assert.deepEqual(
-        result.skills.map((skill) => skill.name),
-        ["Good Skill"],
-      );
+      assert.deepEqual(result.skills.map((skill) => skill.name), ["Good Skill"]);
       assert.deepEqual(result.warnings, [
         {
           code: "MALFORMED_SKILL",
           message: "A SKILL.md file contained invalid metadata.",
+          sourceId: "legacy",
           relativePath: "bad/SKILL.md",
         },
       ]);
@@ -202,6 +313,7 @@ describe("scanSkills", () => {
       const result = await scanSkills({ root: linkedRoot });
 
       assert.equal(result.scan.status, "invalid_root");
+      assert.equal(result.scan.sources[0]?.status, "invalid_root");
       assert.deepEqual(result.skills, []);
     });
   });
@@ -219,6 +331,7 @@ describe("scanSkills", () => {
           {
             code: "UNREADABLE_ENTRY",
             message: "An entry could not be read safely.",
+            sourceId: "legacy",
             relativePath: "private",
           },
         ]);
@@ -229,29 +342,64 @@ describe("scanSkills", () => {
     });
   });
 
-  it("returns stable IDs and portable relative paths in sorted order", async () => {
-    await withTemporaryDirectory(async (root) => {
-      await createSkill(root, "zulu", "Zulu");
-      await createSkill(root, "alpha", "Alpha");
+  it("keeps duplicate names distinct with stable source-specific IDs", async () => {
+    await withTemporaryDirectory(async (parent) => {
+      const first = join(parent, "one");
+      const second = join(parent, "two");
+      await createSkill(first, "same", "Duplicate Skill");
+      await createSkill(second, "same", "Duplicate Skill");
+      const config = {
+        environment: environment([
+          source("one", first),
+          source("two", second),
+        ]),
+      };
 
-      const result = await scanSkills({ root });
+      const firstScan = await scanSkills(config);
+      const secondScan = await scanSkills(config);
 
-      assert.deepEqual(result.skills, [
+      assert.deepEqual(firstScan.skills, [
         {
-          id: "59fa360eb8d92ee5c0020590",
-          name: "Alpha",
+          id: "3074e223c280dddbc3ee16eb",
+          sourceId: "one",
+          name: "Duplicate Skill",
           description: "A clearly described local test skill.",
-          relativePath: "alpha/SKILL.md",
+          relativePath: "same/SKILL.md",
           tags: ["local-test"],
         },
         {
-          id: "8ad1e73860a0d696ab61bff2",
-          name: "Zulu",
+          id: "c7ec46713db8f4d0098f493b",
+          sourceId: "two",
+          name: "Duplicate Skill",
           description: "A clearly described local test skill.",
-          relativePath: "zulu/SKILL.md",
+          relativePath: "same/SKILL.md",
           tags: ["local-test"],
         },
       ]);
+      assert.deepEqual(secondScan.skills, firstScan.skills);
+    });
+  });
+
+  it("reports partial success when one root is valid and another is invalid", async () => {
+    await withTemporaryDirectory(async (parent) => {
+      const valid = join(parent, "valid");
+      const missing = join(parent, "missing");
+      await createSkill(valid, "alpha", "Alpha");
+
+      const result = await scanSkills({
+        environment: environment([
+          source("valid", valid),
+          source("missing", missing),
+        ]),
+      });
+
+      assert.equal(result.scan.status, "partial");
+      assert.deepEqual(result.skills.map((skill) => skill.sourceId), ["valid"]);
+      assert.deepEqual(result.scan.sources.map(({ id, status, count }) => ({ id, status, count })), [
+        { id: "valid", status: "ready", count: 1 },
+        { id: "missing", status: "invalid_root", count: 0 },
+      ]);
+      assert.equal(JSON.stringify(result).includes(parent), false);
     });
   });
 });

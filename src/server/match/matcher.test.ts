@@ -7,6 +7,7 @@ import { matchSkills } from "@/src/server/match/matcher";
 function skill(overrides: Partial<SkillSummary> = {}): SkillSummary {
   return {
     id: "skill-1",
+    sourceId: "codex",
     name: "React Builder",
     description: "Testing accessible interfaces",
     relativePath: "react-builder/SKILL.md",
@@ -98,5 +99,17 @@ describe("matchSkills", () => {
     const matches = matchSkills("tests reactive", [skill()]);
 
     assert.deepEqual(matches, []);
+  });
+
+  it("returns both source-specific IDs when duplicate skill names match", () => {
+    const matches = matchSkills("react", [
+      skill({ id: "source-a-id", sourceId: "source-a", name: "React" }),
+      skill({ id: "source-b-id", sourceId: "source-b", name: "React" }),
+    ]);
+
+    assert.deepEqual(matches.map((match) => match.skillId), [
+      "source-a-id",
+      "source-b-id",
+    ]);
   });
 });

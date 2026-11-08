@@ -111,11 +111,15 @@ function parseSource(value: unknown): SkillSourceConfig | undefined {
 }
 
 export function resolveSkillSources(
-  environment: SourceEnvironment = process.env,
+  environment?: SourceEnvironment,
 ): SourceResolution {
-  const encodedSources = environment.SKILL_SOURCES_JSON;
+  const resolvedEnvironment: SourceEnvironment = environment ?? {
+    SKILL_SOURCES_JSON: process.env.SKILL_SOURCES_JSON,
+    SKILLS_ROOT: process.env.SKILLS_ROOT,
+  };
+  const encodedSources = resolvedEnvironment.SKILL_SOURCES_JSON;
   if (encodedSources === undefined) {
-    const legacyRoot = environment.SKILLS_ROOT ?? "";
+    const legacyRoot = resolvedEnvironment.SKILLS_ROOT ?? "";
     if (legacyRoot.trim().length === 0) {
       return { status: "not_configured", sources: [] };
     }
